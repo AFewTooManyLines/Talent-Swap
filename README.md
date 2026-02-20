@@ -10,7 +10,7 @@ Use any static web server from the project root:
 python3 -m http.server 4173
 ```
 
-Then open <http://localhost:4173> on your browser
+Then open <http://localhost:4173/Pages/index.html> on your browser
 
 ## Deployed model
 Visit the deployed [website](https://talent-swap.vercel.app/) instead of running the project locally.
