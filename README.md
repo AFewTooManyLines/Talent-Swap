@@ -1,17 +1,7 @@
 # Talent Swap
 
-A multi-page front-end for a skill-swapping platform with Firebase Authentication + Firestore integration.
-
-## Features
-- Animated marketing landing page (`index.html`) with prominent sign-up CTA.
-- Working sign-up and sign-in flows using Firebase Auth.
-- User profile data stored in Firestore with fields:
-  - `displayName`
-  - `email`
-  - `talents` (array)
-  - `signUpDate` and `signUpDateReadable`
-- Community profile listing page (`profiles.html`) with search/filter.
-- Individual user profile page (`profile.html?uid=<userId>`).
+A platform to swap and learn new skills, all for the price of **nothing**!
+You can create an account, search for requests, post your own and interact with other people.
 
 ## Running locally
 Use any static web server from the project root:
@@ -20,7 +10,7 @@ Use any static web server from the project root:
 python3 -m http.server 4173
 ```
 
-Then open <http://localhost:4173>.
+Then open <http://localhost:4173> on your browser
 
-## Firebase project
-The app is configured for the existing Talent Swap Firebase project in `src/app.js`.
+## Deployed model
+Visit the deployed [website](https://talent-swap.vercel.app/) instead of running the project locally.
