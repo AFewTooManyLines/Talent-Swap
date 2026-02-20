@@ -1,0 +1,30 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Talent Profiles | Talent Swap</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="profiles">
+  <div class="animated-background" aria-hidden="true">
+    <canvas id="starCanvas"></canvas>
+  </div>
+
+  <header class="topbar compact">
+    <a href="index.html"><img src="Assets/Images/Title.png" class="title-image" alt="Talent Swap" /></a>
+    <div class="auth-inline">
+      <span id="sessionEmail" class="muted"></span>
+      <button id="logoutBtn" class="ghost-btn">Log out</button>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Community Profiles</h1>
+    <input id="profileSearch" type="search" class="search-input" placeholder="Search by name, email, or talent..." />
+    <section id="profilesList" class="feature-grid"></section>
+  </main>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
