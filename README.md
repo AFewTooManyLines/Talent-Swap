@@ -1,32 +1,26 @@
-# Talent-Swap
-School Project
+# Talent Swap
 
-## Firebase setup
-TalentSwap is configured to use Firebase as its cloud database backend (Firestore).
+A multi-page front-end for a skill-swapping platform with Firebase Authentication + Firestore integration.
 
-### Environment variables
-Create a `.env` file in the project root (already added in this repository for local configuration) with the following values:
+## Features
+- Animated marketing landing page (`index.html`) with prominent sign-up CTA.
+- Working sign-up and sign-in flows using Firebase Auth.
+- User profile data stored in Firestore with fields:
+  - `displayName`
+  - `email`
+  - `talents` (array)
+  - `signUpDate` and `signUpDateReadable`
+- Community profile listing page (`profiles.html`) with search/filter.
+- Individual user profile page (`profile.html?uid=<userId>`).
 
-```env
-REACT_APP_FIREBASE_API_KEY=...
-REACT_APP_FIREBASE_AUTH_DOMAIN=...
-REACT_APP_FIREBASE_PROJECT_ID=...
-REACT_APP_FIREBASE_STORAGE_BUCKET=...
-REACT_APP_FIREBASE_MESSAGING_SENDER_ID=...
-REACT_APP_FIREBASE_APP_ID=...
-REACT_APP_FIREBASE_MEASUREMENT_ID=...
+## Running locally
+Use any static web server from the project root:
+
+```bash
+python3 -m http.server 4173
 ```
 
-A safe template is available in `.env.example`.
+Then open <http://localhost:4173>.
 
-### Firebase module
-Firebase is initialized in `src/config/firebase.js` and exports:
-- `app` (Firebase app)
-- `db` (Firestore database instance)
-- `analytics` (Firebase analytics in browser environments)
-
-Import it where needed:
-
-```js
-import { db } from "./src/config/firebase";
-```
+## Firebase project
+The app is configured for the existing Talent Swap Firebase project in `src/app.js`.

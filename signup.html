@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Create Account | Talent Swap</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body data-page="signup" class="auth-page">
+  <div class="animated-background" aria-hidden="true">
+    <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
+    <canvas id="starCanvas"></canvas>
+  </div>
+
+  <a href="index.html" class="back-link">← Home</a>
+
+  <main class="auth-card pop-in">
+    <h1>Create your account</h1>
+    <p class="muted">Join and publish your talents to the community.</p>
+    <form id="signupForm" class="stack-form">
+      <label>Display name<input type="text" name="displayName" required minlength="2" /></label>
+      <label>Email<input type="email" name="email" required /></label>
+      <label>Password<input type="password" name="password" required minlength="8" /></label>
+      <label>Talents (comma separated)<input type="text" name="talents" required placeholder="Guitar, Video editing, JavaScript" /></label>
+      <button class="primary-btn" type="submit">Create account</button>
+      <p id="signupStatus" class="status"></p>
+    </form>
+    <p>Already a member? <a href="signin.html">Sign in.</a></p>
+  </main>
+
+  <script type="module" src="src/app.js"></script>
+</body>
+</html>
