@@ -178,6 +178,7 @@ async function initProfilePage() {
       <h1>${escapeHtml(user.displayName || "Anonymous")}</h1>
       <p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p>
       <p><strong>Sign up date:</strong> ${escapeHtml(user.signUpDateReadable || "-")}</p>
+      <p><strong>Password:</strong> Managed securely with Firebase Authentication</p>
       <h3>Talents</h3>
       <div class="chips">${(user.talents || []).map((talent) => `<span class="chip">${escapeHtml(talent)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>
     </article>
