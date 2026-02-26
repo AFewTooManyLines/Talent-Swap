@@ -6,6 +6,7 @@ import {
   onAuthStateChanged,
   signOut,
   updateProfile,
+  sendPasswordResetEmail,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth.js";
 import {
   getFirestore,
@@ -146,6 +147,7 @@ function initSignup() {
 function initSignin() {
   const form = document.getElementById("signinForm");
   const status = document.getElementById("signinStatus");
+  const resetBtn = document.getElementById("resetPasswordBtn");
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -158,6 +160,22 @@ function initSignin() {
       await signInWithEmailAndPassword(auth, email, password);
       status.textContent = "Signed in.";
       setTimeout(() => (window.location.href = "profiles.html"), 300);
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  });
+
+  resetBtn?.addEventListener("click", async () => {
+    const email = String(new FormData(form).get("email") || "").trim().toLowerCase();
+
+    if (!email) {
+      status.textContent = "Enter your email first.";
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      status.textContent = "Password reset email sent.";
     } catch (error) {
       status.textContent = error.message;
     }
