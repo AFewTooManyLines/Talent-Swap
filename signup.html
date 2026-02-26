@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Create Account | Talent Swap</title>
+  <title>Create Account | SwapForge</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="signup" class="auth-page">
@@ -12,7 +12,7 @@
     <canvas id="starCanvas"></canvas>
   </div>
 
-  <a href="index.html" class="back-link">Home</a>
+  <a href="index.html" class="back-link icon-link" aria-label="Back to home"><i data-lucide="house"></i></a>
 
   <main class="auth-card pop-in">
     <h1>Create your account</h1>
@@ -25,9 +25,10 @@
       <button class="primary-btn" type="submit">Create account</button>
       <p id="signupStatus" class="status"></p>
     </form>
-    <p>Already a member? <a href="signin.html">Sign in.</a></p>
+    <p>Already a member? <a href="signin.html" class="icon-link" aria-label="Sign in"><i data-lucide="log-in"></i></a></p>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js"></script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
