@@ -107,6 +107,7 @@ function initSignup() {
       await updateProfile(credential.user, { displayName });
       await setDoc(doc(db, "users", uid), {
         uid, displayName, email, talents,
+        description: "",
         photoURL: "", bannerURL: "",
         createdAt: serverTimestamp(),
       });
@@ -167,11 +168,13 @@ async function initDashboard(user) {
   const users = snapshot.docs.map((entry) => entry.data()).filter((entry) => entry.uid !== user.uid);
 
   const render = (term = "") => {
-    const filtered = users.filter((profile) => [profile.displayName, profile.email, ...(profile.talents || [])].join(" ").toLowerCase().includes(term.trim().toLowerCase()));
+    const filtered = users.filter((profile) => [profile.displayName, profile.email, profile.description, ...(profile.talents || [])].join(" ").toLowerCase().includes(term.trim().toLowerCase()));
     if (!filtered.length) return (list.innerHTML = '<p class="muted">No matching users found.</p>');
 
     list.innerHTML = filtered.map((profile) => {
-      const options = (profile.talents || []).map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+      const options = (profile.talents || []).length
+        ? (profile.talents || []).map((t) => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("")
+        : '<option value="General talent">General talent</option>';
       return `<article class="row-card">
           <div>
             <img class="profile-banner" src="${escapeHtml(getBanner(profile.bannerURL))}" alt="Banner" />
@@ -180,6 +183,7 @@ async function initDashboard(user) {
               <div>
                 <h3>${escapeHtml(profile.displayName || "Unnamed")}</h3>
                 <p class="muted">${escapeHtml(profile.email || "No email")}</p>
+                <p class="profile-description">${escapeHtml(profile.description || "No profile description yet.")}</p>
                 <div class="chips">${(profile.talents || []).map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("")}</div>
               </div>
             </div>
@@ -200,10 +204,10 @@ async function initDashboard(user) {
   search?.addEventListener("input", (event) => render(String(event.target.value || "")));
 }
 
-async function sendInvite(currentUser, button, statusElement) {
+async function sendInvite(currentUser, button, statusElement, selectedTalent) {
   const toUid = button.dataset.userId;
   const toName = button.dataset.userName || "User";
-  const talent = document.getElementById(`talent-${toUid}`)?.value || "General talent";
+  const talent = selectedTalent || document.getElementById(`talent-${toUid}`)?.value || "General talent";
   const me = await getDoc(doc(db, "users", currentUser.uid));
   const currentData = me.exists() ? me.data() : {};
   await addDoc(collection(db, "alerts"), { fromUid: currentUser.uid, fromName: currentData.displayName || currentUser.displayName || currentUser.email, fromEmail: currentUser.email || "", toUid, toName, talent, status: "pending", createdAt: serverTimestamp() });
@@ -251,6 +255,7 @@ async function initSettings(user) {
   const status = document.getElementById("settingsStatus");
   const displayName = document.getElementById("settingsDisplayName");
   const talents = document.getElementById("settingsTalents");
+  const description = document.getElementById("settingsDescription");
   const avatarInput = document.getElementById("settingsAvatar");
   const bannerInput = document.getElementById("settingsBanner");
   const avatarPreview = document.getElementById("avatarPreview");
@@ -260,13 +265,18 @@ async function initSettings(user) {
   const data = snapshot.exists() ? snapshot.data() : {};
   displayName.value = data.displayName || "";
   talents.value = (data.talents || []).join(", ");
+  description.value = data.description || "";
   avatarPreview.src = getAvatar(data.photoURL);
   bannerPreview.src = getBanner(data.bannerURL);
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
     status.textContent = "Saving...";
-    const next = { displayName: displayName.value.trim(), talents: parseCommaList(talents.value) };
+    const next = {
+      displayName: displayName.value.trim(),
+      talents: parseCommaList(talents.value),
+      description: description.value.trim(),
+    };
     if (avatarInput?.files?.[0]) next.photoURL = await uploadImage(user.uid, avatarInput.files[0], "avatar");
     if (bannerInput?.files?.[0]) next.bannerURL = await uploadImage(user.uid, bannerInput.files[0], "banner");
     await updateDoc(doc(db, "users", user.uid), next);
@@ -299,7 +309,23 @@ async function initProfilePage() {
   const snapshot = await getDoc(doc(db, "users", uid));
   if (!snapshot.exists()) return (container.innerHTML = "<p>Sorry, that profile does not exist.</p>");
   const user = snapshot.data();
-  container.innerHTML = `<article class="auth-card pop-in"><img class="profile-banner" src="${escapeHtml(getBanner(user.bannerURL))}" alt="Banner" /><div class="profile-hero"><img class="profile-avatar large" src="${escapeHtml(getAvatar(user.photoURL))}" alt="Avatar" /><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p></div></div><h3>Talents</h3><div class="chips">${(user.talents || []).map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div></article>`;
+  const talents = user.talents || [];
+  const canInvite = auth.currentUser && auth.currentUser.uid !== uid;
+  const inviteOptions = talents.length
+    ? talents.map((talent) => `<option value="${escapeHtml(talent)}">${escapeHtml(talent)}</option>`).join("")
+    : '<option value="General talent">General talent</option>';
+
+  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><img class="profile-banner" src="${escapeHtml(getBanner(user.bannerURL))}" alt="Banner" /><div class="profile-hero"><img class="profile-avatar large" src="${escapeHtml(getAvatar(user.photoURL))}" alt="Avatar" /><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
+
+  if (canInvite && auth.currentUser) {
+    const inviteButton = document.getElementById("profileInviteBtn");
+    const inviteStatus = document.getElementById("profileInviteStatus");
+    inviteButton?.addEventListener("click", async () => {
+      const selectedTalent = document.getElementById("profileTalentSelect")?.value || "General talent";
+      await sendInvite(auth.currentUser, inviteButton, inviteStatus, selectedTalent);
+    });
+  }
+
   window.lucide?.createIcons();
 }
 
