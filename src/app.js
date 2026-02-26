@@ -39,6 +39,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.firebasestorage.app`);
+const userImagesCollection = "userImages";
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
 
@@ -166,7 +167,10 @@ async function initDashboard(user) {
   const search = document.getElementById("profileSearch");
   const status = document.getElementById("dashboardStatus");
   const snapshot = await getDocs(collection(db, "users"));
-  const users = snapshot.docs.map((entry) => entry.data()).filter((entry) => entry.uid !== user.uid);
+  const imageRefs = await getAllUserImageReferences();
+  const users = snapshot.docs
+    .map((entry) => ({ ...entry.data(), ...(imageRefs.get(entry.id) || {}) }))
+    .filter((entry) => entry.uid !== user.uid);
 
   const render = (term = "") => {
     const filtered = users.filter((profile) => [profile.displayName, profile.email, profile.description, ...(profile.talents || [])].join(" ").toLowerCase().includes(term.trim().toLowerCase()));
@@ -221,7 +225,10 @@ async function initFindMatch(user) { /* unchanged behavior */
   const userDoc = await getDoc(doc(db, "users", user.uid));
   const userData = userDoc.exists() ? userDoc.data() : {};
   const snapshot = await getDocs(collection(db, "users"));
-  const users = snapshot.docs.map((entry) => entry.data()).filter((entry) => entry.uid !== user.uid);
+  const imageRefs = await getAllUserImageReferences();
+  const users = snapshot.docs
+    .map((entry) => ({ ...entry.data(), ...(imageRefs.get(entry.id) || {}) }))
+    .filter((entry) => entry.uid !== user.uid);
   const render = (term = "") => {
     const t = term.trim().toLowerCase();
     const matches = users.filter((entry) => (entry.talents || []).some((talent) => talent.toLowerCase().includes(t)));
@@ -263,7 +270,8 @@ async function initSettings(user) {
   const bannerPreview = document.getElementById("bannerPreview");
 
   const snapshot = await getDoc(doc(db, "users", user.uid));
-  const data = snapshot.exists() ? snapshot.data() : {};
+  const imageRefs = await getUserImageReferences(user.uid);
+  const data = { ...(snapshot.exists() ? snapshot.data() : {}), ...imageRefs };
   displayName.value = data.displayName || "";
   talents.value = (data.talents || []).join(", ");
   description.value = data.description || "";
@@ -291,8 +299,16 @@ async function initSettings(user) {
         talents: parseCommaList(talents.value),
         description: description.value.trim(),
       };
-      if (avatarInput?.files?.[0]) next.photoURL = await uploadImage(user.uid, avatarInput.files[0], "avatar");
-      if (bannerInput?.files?.[0]) next.bannerURL = await uploadImage(user.uid, bannerInput.files[0], "banner");
+      if (avatarInput?.files?.[0]) {
+        const avatarImage = await uploadImage(user.uid, avatarInput.files[0], "avatar");
+        next.photoURL = avatarImage.downloadURL;
+        await saveUserImageReference(user.uid, "avatar", avatarImage);
+      }
+      if (bannerInput?.files?.[0]) {
+        const bannerImage = await uploadImage(user.uid, bannerInput.files[0], "banner");
+        next.bannerURL = bannerImage.downloadURL;
+        await saveUserImageReference(user.uid, "banner", bannerImage);
+      }
       await updateDoc(doc(db, "users", user.uid), next);
       if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName, photoURL: next.photoURL || data.photoURL || "" });
       avatarPreview.src = getAvatar({ ...data, ...next });
@@ -314,13 +330,39 @@ async function uploadImage(uid, file, type) {
     try {
       const fileRef = ref(targetStorage, path);
       await uploadBytes(fileRef, file, { contentType: file.type || "application/octet-stream" });
-      return await getDownloadURL(fileRef);
+      return {
+        downloadURL: await getDownloadURL(fileRef),
+        storagePath: path,
+      };
     } catch (error) {
       latestError = error;
     }
   }
 
   throw latestError || new Error("Image upload failed.");
+}
+
+
+async function getAllUserImageReferences() {
+  const snapshot = await getDocs(collection(db, userImagesCollection));
+  const refsByUid = new Map();
+  snapshot.forEach((entry) => refsByUid.set(entry.id, entry.data()));
+  return refsByUid;
+}
+
+async function getUserImageReferences(uid) {
+  const snapshot = await getDoc(doc(db, userImagesCollection, uid));
+  return snapshot.exists() ? snapshot.data() : {};
+}
+
+async function saveUserImageReference(uid, type, imageData) {
+  const fieldName = type === "avatar" ? "photoURL" : "bannerURL";
+  await setDoc(doc(db, userImagesCollection, uid), {
+    uid,
+    [fieldName]: imageData.downloadURL,
+    [`${type}Path`]: imageData.storagePath,
+    updatedAt: serverTimestamp(),
+  }, { merge: true });
 }
 
 async function initConnections(user) {
@@ -338,7 +380,7 @@ async function initProfilePage() {
   if (!uid || !container) return;
   const snapshot = await getDoc(doc(db, "users", uid));
   if (!snapshot.exists()) return (container.innerHTML = "<p>Sorry, that profile does not exist.</p>");
-  const user = snapshot.data();
+  const user = { ...snapshot.data(), ...(await getUserImageReferences(uid)) };
   const talents = user.talents || [];
   const canInvite = auth.currentUser && auth.currentUser.uid !== uid;
   const inviteOptions = talents.length
