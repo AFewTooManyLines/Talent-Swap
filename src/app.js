@@ -38,6 +38,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
+const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.appspot.com`);
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
 
@@ -269,28 +270,57 @@ async function initSettings(user) {
   avatarPreview.src = getAvatar(data.photoURL);
   bannerPreview.src = getBanner(data.bannerURL);
 
+  avatarInput?.addEventListener("change", () => {
+    const file = avatarInput.files?.[0];
+    if (!file) return;
+    avatarPreview.src = URL.createObjectURL(file);
+  });
+
+  bannerInput?.addEventListener("change", () => {
+    const file = bannerInput.files?.[0];
+    if (!file) return;
+    bannerPreview.src = URL.createObjectURL(file);
+  });
+
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
-    status.textContent = "Saving...";
-    const next = {
-      displayName: displayName.value.trim(),
-      talents: parseCommaList(talents.value),
-      description: description.value.trim(),
-    };
-    if (avatarInput?.files?.[0]) next.photoURL = await uploadImage(user.uid, avatarInput.files[0], "avatar");
-    if (bannerInput?.files?.[0]) next.bannerURL = await uploadImage(user.uid, bannerInput.files[0], "banner");
-    await updateDoc(doc(db, "users", user.uid), next);
-    if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName, photoURL: next.photoURL || data.photoURL || "" });
-    avatarPreview.src = getAvatar(next.photoURL || data.photoURL);
-    bannerPreview.src = getBanner(next.bannerURL || data.bannerURL);
-    status.textContent = "Profile updated successfully.";
+    try {
+      status.textContent = "Saving...";
+      const next = {
+        displayName: displayName.value.trim(),
+        talents: parseCommaList(talents.value),
+        description: description.value.trim(),
+      };
+      if (avatarInput?.files?.[0]) next.photoURL = await uploadImage(user.uid, avatarInput.files[0], "avatar");
+      if (bannerInput?.files?.[0]) next.bannerURL = await uploadImage(user.uid, bannerInput.files[0], "banner");
+      await updateDoc(doc(db, "users", user.uid), next);
+      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName, photoURL: next.photoURL || data.photoURL || "" });
+      avatarPreview.src = getAvatar(next.photoURL || data.photoURL);
+      bannerPreview.src = getBanner(next.bannerURL || data.bannerURL);
+      status.textContent = "Profile updated successfully.";
+    } catch (error) {
+      status.textContent = `Unable to save settings: ${error.message}`;
+    }
   });
 }
 
 async function uploadImage(uid, file, type) {
-  const fileRef = ref(storage, `users/${uid}/${type}-${Date.now()}-${file.name}`);
-  await uploadBytes(fileRef, file);
-  return getDownloadURL(fileRef);
+  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
+  const path = `users/${uid}/${type}-${Date.now()}-${safeName}`;
+  const storages = [storage, storageFallback];
+
+  let latestError;
+  for (const targetStorage of storages) {
+    try {
+      const fileRef = ref(targetStorage, path);
+      await uploadBytes(fileRef, file, { contentType: file.type || "application/octet-stream" });
+      return await getDownloadURL(fileRef);
+    } catch (error) {
+      latestError = error;
+    }
+  }
+
+  throw latestError || new Error("Image upload failed.");
 }
 
 async function initConnections(user) {
