@@ -28,7 +28,7 @@ const firebaseConfig = {
   apiKey: "AIzaSyA-Ex97OdxkzcD8gJyTp1AVn79xTNId_kM",
   authDomain: "talentswap-bcea8.firebaseapp.com",
   projectId: "talentswap-bcea8",
-  storageBucket: "talentswap-bcea8.firebasestorage.app",
+  storageBucket: "talentswap-bcea8.appspot.com",
   messagingSenderId: "445238511776",
   appId: "1:445238511776:web:b9525e2d8d08c8ccea21c5",
   measurementId: "G-YNPHVY5LRE",
@@ -38,7 +38,7 @@ const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
-const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.appspot.com`);
+const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.firebasestorage.app`);
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
 
