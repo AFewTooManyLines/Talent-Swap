@@ -37,8 +37,8 @@ a { color: var(--primary-strong); }
 .topbar { display:flex; justify-content:space-between; align-items:center; padding:1rem 1.3rem; background:#f4f4f4; border-bottom:none; }
 .topbar.thin { padding:.55rem 1rem; }
 .top-actions { display:flex; align-items:center; gap:.55rem; flex-wrap:wrap; }
-.title-image { width:min(430px,70vw); }
-.title-image.small { width:min(220px,48vw); }
+.title-image { width:min(340px,62vw); display:block; height:auto; margin-block:-.4rem; }
+.title-image.small { width:min(180px,42vw); }
 .hero { max-width:1080px; margin:0 auto; text-align:center; padding:1rem 1rem 4rem; }
 .hero-logo { width:clamp(160px,30vw,280px); }
 .floating { animation:bob 4s infinite ease-in-out; }
