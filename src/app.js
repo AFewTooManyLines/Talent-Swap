@@ -141,6 +141,22 @@ function initSignin() {
       status.textContent = "Reset email sent.";
     } catch (error) { status.textContent = error.message; }
   });
+
+  resetBtn?.addEventListener("click", async () => {
+    const email = String(new FormData(form).get("email") || "").trim().toLowerCase();
+
+    if (!email) {
+      status.textContent = "Enter your email first.";
+      return;
+    }
+
+    try {
+      await sendPasswordResetEmail(auth, email);
+      status.textContent = "Password reset email sent.";
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  });
 }
 
 async function initDashboard(user) {
