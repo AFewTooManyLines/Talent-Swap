@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Sign In | Talent Swap</title>
+  <title>Sign In | SwapForge</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="signin" class="auth-page">
@@ -12,7 +12,7 @@
     <canvas id="starCanvas"></canvas>
   </div>
 
-  <a href="index.html" class="back-link">Home</a>
+  <a href="index.html" class="back-link icon-link" aria-label="Back to home"><i data-lucide="house"></i></a>
 
   <main class="auth-card pop-in">
     <h1>Welcome back</h1>
@@ -20,11 +20,13 @@
       <label>Email<input type="email" name="email" required /></label>
       <label>Password<input type="password" name="password" required minlength="8" /></label>
       <button class="primary-btn" type="submit">Sign in</button>
+      <button id="resetPasswordBtn" class="ghost-btn" type="button"><i data-lucide="key-round"></i> Reset password</button>
       <p id="signinStatus" class="status"></p>
     </form>
-    <p>No account yet? <a href="signup.html">Create one.</a></p>
+    <p>No account yet? <a href="signup.html" class="icon-link" aria-label="Create account"><i data-lucide="user-plus"></i></a></p>
   </main>
 
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js"></script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
