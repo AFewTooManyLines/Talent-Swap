@@ -3,18 +3,19 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>User Profile | Talent Swap</title>
+  <title>User Profile | SwapForge</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body data-page="profile">
   <div class="animated-background" aria-hidden="true"><canvas id="starCanvas"></canvas></div>
 
   <header class="topbar compact">
-    <a href="profiles.html" class="ghost-btn">← All profiles</a>
+    <a href="profiles.html" class="ghost-btn" aria-label="All profiles"><i data-lucide="arrow-left"></i></a>
   </header>
 
   <main id="profileDetail" class="container"></main>
 
+  <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js"></script>
   <script type="module" src="src/app.js"></script>
 </body>
 </html>
