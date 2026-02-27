@@ -40,6 +40,8 @@ const db = getFirestore(app);
 const storage = getStorage(app);
 const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.firebasestorage.app`);
 const profilesCollection = "profiles";
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
+const IMAGE_ACCEPT_ATTRIBUTE = Array.from(ALLOWED_IMAGE_TYPES).join(",");
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
 let signupInProgress = false;
@@ -268,6 +270,8 @@ async function initSettings(user) {
   const avatarInput = document.getElementById("settingsAvatar");
   const avatarPreview = document.getElementById("avatarPreview");
 
+  if (avatarInput) avatarInput.accept = IMAGE_ACCEPT_ATTRIBUTE;
+
   const snapshot = await getDoc(doc(db, "users", user.uid));
   const imageRefs = await getUserImageReferences(user.uid);
   const data = { ...(snapshot.exists() ? snapshot.data() : {}), ...imageRefs };
@@ -279,7 +283,13 @@ async function initSettings(user) {
   avatarInput?.addEventListener("change", () => {
     const file = avatarInput.files?.[0];
     if (!file) return;
+    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+      status.textContent = "Unsupported image type. Please upload a JPG, PNG, WEBP, or GIF image.";
+      avatarInput.value = "";
+      return;
+    }
     avatarPreview.src = URL.createObjectURL(file);
+    status.textContent = "";
   });
 
 
@@ -302,6 +312,7 @@ async function initSettings(user) {
         displayName: next.displayName,
         talents: next.talents,
         description: next.description,
+        photoURL: next.photoURL || data.photoURL || "",
         updatedAt: serverTimestamp(),
       }, { merge: true });
       await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", {
@@ -320,15 +331,18 @@ async function initSettings(user) {
 }
 
 async function uploadImage(uid, file, type) {
-  const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const path = `profiles/${uid}/${type}-${Date.now()}-${safeName}`;
+  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
+    throw new Error("Unsupported image type. Please upload JPG, PNG, WEBP, or GIF files.");
+  }
+  const converted = await convertImageToWebP(file);
+  const path = `profiles/${uid}/${type}-${Date.now()}.webp`;
   const storages = [storage, storageFallback];
 
   let latestError;
   for (const targetStorage of storages) {
     try {
       const fileRef = ref(targetStorage, path);
-      await uploadBytes(fileRef, file, { contentType: file.type || "application/octet-stream" });
+      await uploadBytes(fileRef, converted, { contentType: "image/webp" });
       return {
         downloadURL: await getDownloadURL(fileRef),
         storagePath: path,
@@ -339,6 +353,34 @@ async function uploadImage(uid, file, type) {
   }
 
   throw latestError || new Error("Image upload failed.");
+}
+
+async function convertImageToWebP(file) {
+  const objectUrl = URL.createObjectURL(file);
+  try {
+    const image = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error("Unable to process this image. Please try a different file."));
+      img.src = objectUrl;
+    });
+
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth || image.width;
+    canvas.height = image.naturalHeight || image.height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to process this image in your browser.");
+    context.drawImage(image, 0, 0);
+
+    return await new Promise((resolve, reject) => {
+      canvas.toBlob((blob) => {
+        if (!blob) return reject(new Error("Unable to convert this image to a URL-ready format."));
+        resolve(blob);
+      }, "image/webp", 0.9);
+    });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
 }
 
 
