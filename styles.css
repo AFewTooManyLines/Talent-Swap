@@ -75,10 +75,7 @@ textarea { resize:vertical; min-height:90px; font-family:inherit; }
 .row-card h3 { margin:.1rem 0; }
 .row-actions { display:flex; align-items:center; gap:.4rem; }
 .tiny-select { min-width:130px; }
-.profile-avatar { width:74px; height:74px; border-radius:50%; object-fit:cover; background:#888; border:2px solid var(--primary); }
-.profile-avatar.large { width:124px; height:124px; }
 .row-main { display:flex; align-items:center; gap:.75rem; }
-.upload-preview { width:100%; max-width:220px; min-height:90px; border-radius:.8rem; border:1px dashed var(--border); background:#8f8f8f; object-fit:cover; }
 .profile-hero { display:flex; gap:1rem; align-items:flex-end; margin-top:0; }
 .profile-description { margin:.35rem 0 .5rem; line-height:1.4; }
 .profile-detail-card { margin-inline:auto; }

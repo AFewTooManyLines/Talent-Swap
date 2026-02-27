@@ -22,7 +22,6 @@ import {
   updateDoc,
   onSnapshot,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
-import { getStorage, ref, uploadBytes, getDownloadURL } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-storage.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyA-Ex97OdxkzcD8gJyTp1AVn79xTNId_kM",
@@ -37,11 +36,7 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
-const storage = getStorage(app);
-const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.firebasestorage.app`);
 const profilesCollection = "profiles";
-const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-const IMAGE_ACCEPT_ATTRIBUTE = Array.from(ALLOWED_IMAGE_TYPES).join(",");
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
 let signupInProgress = false;
@@ -126,7 +121,6 @@ function initSignup() {
         email,
         talents,
         description: "",
-        photoURL: "",
         updatedAt: serverTimestamp(),
       }, { merge: true });
       signupInProgress = false;
@@ -171,9 +165,8 @@ async function initDashboard(user) {
   const search = document.getElementById("profileSearch");
   const status = document.getElementById("dashboardStatus");
   const snapshot = await getDocs(collection(db, "users"));
-  const imageRefs = await getAllUserImageReferences();
   const users = snapshot.docs
-    .map((entry) => ({ ...entry.data(), ...(imageRefs.get(entry.id) || {}) }))
+    .map((entry) => entry.data())
     .filter((entry) => entry.uid !== user.uid);
 
   const render = (term = "") => {
@@ -187,7 +180,6 @@ async function initDashboard(user) {
       return `<article class="row-card">
           <div>
             <div class="row-main">
-              <img class="profile-avatar" src="${escapeHtml(getAvatar(profile))}" alt="Avatar" />
               <div>
                 <h3>${escapeHtml(profile.displayName || "Unnamed")}</h3>
                 <p class="muted">${escapeHtml(profile.email || "No email")}</p>
@@ -228,9 +220,8 @@ async function initFindMatch(user) { /* unchanged behavior */
   const userDoc = await getDoc(doc(db, "users", user.uid));
   const userData = userDoc.exists() ? userDoc.data() : {};
   const snapshot = await getDocs(collection(db, "users"));
-  const imageRefs = await getAllUserImageReferences();
   const users = snapshot.docs
-    .map((entry) => ({ ...entry.data(), ...(imageRefs.get(entry.id) || {}) }))
+    .map((entry) => entry.data())
     .filter((entry) => entry.uid !== user.uid);
   const render = (term = "") => {
     const t = term.trim().toLowerCase();
@@ -267,30 +258,12 @@ async function initSettings(user) {
   const displayName = document.getElementById("settingsDisplayName");
   const talents = document.getElementById("settingsTalents");
   const description = document.getElementById("settingsDescription");
-  const avatarInput = document.getElementById("settingsAvatar");
-  const avatarPreview = document.getElementById("avatarPreview");
-
-  if (avatarInput) avatarInput.accept = IMAGE_ACCEPT_ATTRIBUTE;
 
   const snapshot = await getDoc(doc(db, "users", user.uid));
-  const imageRefs = await getUserImageReferences(user.uid);
-  const data = { ...(snapshot.exists() ? snapshot.data() : {}), ...imageRefs };
+  const data = snapshot.exists() ? snapshot.data() : {};
   displayName.value = data.displayName || "";
   talents.value = (data.talents || []).join(", ");
   description.value = data.description || "";
-  avatarPreview.src = getAvatar(data);
-
-  avatarInput?.addEventListener("change", () => {
-    const file = avatarInput.files?.[0];
-    if (!file) return;
-    if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-      status.textContent = "Unsupported image type. Please upload a JPG, PNG, WEBP, or GIF image.";
-      avatarInput.value = "";
-      return;
-    }
-    avatarPreview.src = URL.createObjectURL(file);
-    status.textContent = "";
-  });
 
 
   form?.addEventListener("submit", async (event) => {
@@ -302,27 +275,20 @@ async function initSettings(user) {
         talents: parseCommaList(talents.value),
         description: description.value.trim(),
       };
-      if (avatarInput?.files?.[0]) {
-        const avatarImage = await uploadImage(user.uid, avatarInput.files[0], "avatar");
-        next.photoURL = avatarImage.downloadURL;
-      }
       await setDoc(doc(db, "users", user.uid), {
         uid: user.uid,
         email: data.email || user.email || "",
         displayName: next.displayName,
         talents: next.talents,
         description: next.description,
-        photoURL: next.photoURL || data.photoURL || "",
         updatedAt: serverTimestamp(),
       }, { merge: true });
       await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", {
         email: data.email || user.email || "",
         talents: next.talents,
         description: next.description,
-        photoURL: next.photoURL || data.photoURL || "",
       });
-      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName, photoURL: next.photoURL || data.photoURL || "" });
-      avatarPreview.src = getAvatar({ ...data, ...next });
+      if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName });
       status.textContent = "Profile updated successfully.";
     } catch (error) {
       status.textContent = `Unable to save settings: ${error.message}`;
@@ -330,71 +296,10 @@ async function initSettings(user) {
   });
 }
 
-async function uploadImage(uid, file, type) {
-  if (!ALLOWED_IMAGE_TYPES.has(file.type)) {
-    throw new Error("Unsupported image type. Please upload JPG, PNG, WEBP, or GIF files.");
-  }
-  const converted = await convertImageToWebP(file);
-  const path = `profiles/${uid}/${type}-${Date.now()}.webp`;
-  const storages = [storage, storageFallback];
-
-  let latestError;
-  for (const targetStorage of storages) {
-    try {
-      const fileRef = ref(targetStorage, path);
-      await uploadBytes(fileRef, converted, { contentType: "image/webp" });
-      return {
-        downloadURL: await getDownloadURL(fileRef),
-        storagePath: path,
-      };
-    } catch (error) {
-      latestError = error;
-    }
-  }
-
-  throw latestError || new Error("Image upload failed.");
-}
-
-async function convertImageToWebP(file) {
-  const objectUrl = URL.createObjectURL(file);
-  try {
-    const image = await new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = () => reject(new Error("Unable to process this image. Please try a different file."));
-      img.src = objectUrl;
-    });
-
-    const canvas = document.createElement("canvas");
-    canvas.width = image.naturalWidth || image.width;
-    canvas.height = image.naturalHeight || image.height;
-    const context = canvas.getContext("2d");
-    if (!context) throw new Error("Unable to process this image in your browser.");
-    context.drawImage(image, 0, 0);
-
-    return await new Promise((resolve, reject) => {
-      canvas.toBlob((blob) => {
-        if (!blob) return reject(new Error("Unable to convert this image to a URL-ready format."));
-        resolve(blob);
-      }, "image/webp", 0.9);
-    });
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
 
 
-async function getAllUserImageReferences() {
-  const snapshot = await getDocs(collection(db, profilesCollection));
-  const refsByUid = new Map();
-  snapshot.forEach((entry) => refsByUid.set(entry.id, entry.data()));
-  return refsByUid;
-}
 
-async function getUserImageReferences(uid) {
-  const snapshot = await getDoc(doc(db, profilesCollection, uid));
-  return snapshot.exists() ? snapshot.data() : {};
-}
+
 
 async function saveProfileReference(uid, name, profileData = {}) {
   await setDoc(doc(db, profilesCollection, uid), {
@@ -420,14 +325,14 @@ async function initProfilePage() {
   if (!uid || !container) return;
   const snapshot = await getDoc(doc(db, "users", uid));
   if (!snapshot.exists()) return (container.innerHTML = "<p>Sorry, that profile does not exist.</p>");
-  const user = { ...snapshot.data(), ...(await getUserImageReferences(uid)) };
+  const user = snapshot.data();
   const talents = user.talents || [];
   const canInvite = auth.currentUser && auth.currentUser.uid !== uid;
   const inviteOptions = talents.length
     ? talents.map((talent) => `<option value="${escapeHtml(talent)}">${escapeHtml(talent)}</option>`).join("")
     : '<option value="General talent">General talent</option>';
 
-  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><div class="profile-hero"><img class="profile-avatar large" src="${escapeHtml(getAvatar(user))}" alt="Avatar" /><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
+  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><div class="profile-hero"><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
 
   if (canInvite && auth.currentUser) {
     const inviteButton = document.getElementById("profileInviteBtn");
@@ -441,10 +346,6 @@ async function initProfilePage() {
   window.lucide?.createIcons();
 }
 
-function getAvatar(profile = {}) {
-  const avatar = profile.photoURL || profile.photoUrl || profile.avatarURL || profile.avatarUrl || profile.profilePicture || profile.profilePictureURL;
-  return avatar || "https://api.iconify.design/lucide:user-round.svg?color=%23777777";
-}
 function parseCommaList(value) { return String(value || "").split(",").map((entry) => entry.trim()).filter(Boolean); }
 function initTheme() {
   const saved = localStorage.getItem("theme") || "light";
