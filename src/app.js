@@ -39,7 +39,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const storage = getStorage(app);
 const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.firebasestorage.app`);
-const userImagesCollection = "userImages";
+const profilesCollection = "profiles";
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
 
@@ -113,6 +113,13 @@ function initSignup() {
         photoURL: "", bannerURL: "",
         createdAt: serverTimestamp(),
       });
+      await setDoc(doc(db, profilesCollection, uid), {
+        uid,
+        name: displayName,
+        photoURL: "",
+        bannerURL: "",
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       status.textContent = "Account created. Redirecting...";
       setTimeout(() => (window.location.href = "profiles.html"), 500);
     } catch (error) { status.textContent = error.message; }
@@ -302,14 +309,18 @@ async function initSettings(user) {
       if (avatarInput?.files?.[0]) {
         const avatarImage = await uploadImage(user.uid, avatarInput.files[0], "avatar");
         next.photoURL = avatarImage.downloadURL;
-        await saveUserImageReference(user.uid, "avatar", avatarImage);
+        await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", { photoURL: avatarImage.downloadURL });
       }
       if (bannerInput?.files?.[0]) {
         const bannerImage = await uploadImage(user.uid, bannerInput.files[0], "banner");
         next.bannerURL = bannerImage.downloadURL;
-        await saveUserImageReference(user.uid, "banner", bannerImage);
+        await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", { bannerURL: bannerImage.downloadURL });
       }
       await updateDoc(doc(db, "users", user.uid), next);
+      await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", {
+        photoURL: next.photoURL || data.photoURL || "",
+        bannerURL: next.bannerURL || data.bannerURL || "",
+      });
       if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName, photoURL: next.photoURL || data.photoURL || "" });
       avatarPreview.src = getAvatar({ ...data, ...next });
       bannerPreview.src = getBanner({ ...data, ...next });
@@ -344,23 +355,22 @@ async function uploadImage(uid, file, type) {
 
 
 async function getAllUserImageReferences() {
-  const snapshot = await getDocs(collection(db, userImagesCollection));
+  const snapshot = await getDocs(collection(db, profilesCollection));
   const refsByUid = new Map();
   snapshot.forEach((entry) => refsByUid.set(entry.id, entry.data()));
   return refsByUid;
 }
 
 async function getUserImageReferences(uid) {
-  const snapshot = await getDoc(doc(db, userImagesCollection, uid));
+  const snapshot = await getDoc(doc(db, profilesCollection, uid));
   return snapshot.exists() ? snapshot.data() : {};
 }
 
-async function saveUserImageReference(uid, type, imageData) {
-  const fieldName = type === "avatar" ? "photoURL" : "bannerURL";
-  await setDoc(doc(db, userImagesCollection, uid), {
+async function saveProfileReference(uid, name, profileData = {}) {
+  await setDoc(doc(db, profilesCollection, uid), {
     uid,
-    [fieldName]: imageData.downloadURL,
-    [`${type}Path`]: imageData.storagePath,
+    name,
+    ...profileData,
     updatedAt: serverTimestamp(),
   }, { merge: true });
 }
