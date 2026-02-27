@@ -42,6 +42,7 @@ const storageFallback = getStorage(app, `gs://${firebaseConfig.projectId}.fireba
 const profilesCollection = "profiles";
 const page = document.body.dataset.page;
 const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
+let signupInProgress = false;
 
 initTheme();
 initStarfield();
@@ -56,7 +57,7 @@ if (page === "profile") initProfilePage();
 function setupAuthRouter() {
   onAuthStateChanged(auth, async (user) => {
     if (page === "landing" && user) return window.location.replace("profiles.html");
-    if ((page === "signin" || page === "signup") && user) return window.location.replace("profiles.html");
+    if ((page === "signin" || page === "signup") && user && !(page === "signup" && signupInProgress)) return window.location.replace("profiles.html");
     if (privatePages.has(page) && !user) return window.location.replace("signin.html");
     if (privatePages.has(page) && user) {
       await initDashboardLayout(user);
@@ -104,25 +105,35 @@ function initSignup() {
     const talents = parseCommaList(fd.get("talents"));
     try {
       status.textContent = "Creating account...";
+      signupInProgress = true;
       const credential = await createUserWithEmailAndPassword(auth, email, password);
       const uid = credential.user.uid;
       await updateProfile(credential.user, { displayName });
       await setDoc(doc(db, "users", uid), {
-        uid, displayName, email, talents,
+        uid,
+        displayName,
+        email,
+        talents,
         description: "",
-        photoURL: "", bannerURL: "",
         createdAt: serverTimestamp(),
-      });
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       await setDoc(doc(db, profilesCollection, uid), {
         uid,
         name: displayName,
+        email,
+        talents,
+        description: "",
         photoURL: "",
-        bannerURL: "",
         updatedAt: serverTimestamp(),
       }, { merge: true });
+      signupInProgress = false;
       status.textContent = "Account created. Redirecting...";
-      setTimeout(() => (window.location.href = "profiles.html"), 500);
-    } catch (error) { status.textContent = error.message; }
+      window.location.href = "profiles.html";
+    } catch (error) {
+      signupInProgress = false;
+      status.textContent = error.message;
+    }
   });
 }
 
@@ -151,22 +162,6 @@ function initSignin() {
       status.textContent = "Reset email sent.";
     } catch (error) { status.textContent = error.message; }
   });
-
-  resetBtn?.addEventListener("click", async () => {
-    const email = String(new FormData(form).get("email") || "").trim().toLowerCase();
-
-    if (!email) {
-      status.textContent = "Enter your email first.";
-      return;
-    }
-
-    try {
-      await sendPasswordResetEmail(auth, email);
-      status.textContent = "Password reset email sent.";
-    } catch (error) {
-      status.textContent = error.message;
-    }
-  });
 }
 
 async function initDashboard(user) {
@@ -189,7 +184,6 @@ async function initDashboard(user) {
         : '<option value="General talent">General talent</option>';
       return `<article class="row-card">
           <div>
-            <img class="profile-banner" src="${escapeHtml(getBanner(profile))}" alt="Banner" />
             <div class="row-main">
               <img class="profile-avatar" src="${escapeHtml(getAvatar(profile))}" alt="Avatar" />
               <div>
@@ -272,9 +266,7 @@ async function initSettings(user) {
   const talents = document.getElementById("settingsTalents");
   const description = document.getElementById("settingsDescription");
   const avatarInput = document.getElementById("settingsAvatar");
-  const bannerInput = document.getElementById("settingsBanner");
   const avatarPreview = document.getElementById("avatarPreview");
-  const bannerPreview = document.getElementById("bannerPreview");
 
   const snapshot = await getDoc(doc(db, "users", user.uid));
   const imageRefs = await getUserImageReferences(user.uid);
@@ -283,7 +275,6 @@ async function initSettings(user) {
   talents.value = (data.talents || []).join(", ");
   description.value = data.description || "";
   avatarPreview.src = getAvatar(data);
-  bannerPreview.src = getBanner(data);
 
   avatarInput?.addEventListener("change", () => {
     const file = avatarInput.files?.[0];
@@ -291,11 +282,6 @@ async function initSettings(user) {
     avatarPreview.src = URL.createObjectURL(file);
   });
 
-  bannerInput?.addEventListener("change", () => {
-    const file = bannerInput.files?.[0];
-    if (!file) return;
-    bannerPreview.src = URL.createObjectURL(file);
-  });
 
   form?.addEventListener("submit", async (event) => {
     event.preventDefault();
@@ -309,21 +295,23 @@ async function initSettings(user) {
       if (avatarInput?.files?.[0]) {
         const avatarImage = await uploadImage(user.uid, avatarInput.files[0], "avatar");
         next.photoURL = avatarImage.downloadURL;
-        await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", { photoURL: avatarImage.downloadURL });
       }
-      if (bannerInput?.files?.[0]) {
-        const bannerImage = await uploadImage(user.uid, bannerInput.files[0], "banner");
-        next.bannerURL = bannerImage.downloadURL;
-        await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", { bannerURL: bannerImage.downloadURL });
-      }
-      await updateDoc(doc(db, "users", user.uid), next);
+      await setDoc(doc(db, "users", user.uid), {
+        uid: user.uid,
+        email: data.email || user.email || "",
+        displayName: next.displayName,
+        talents: next.talents,
+        description: next.description,
+        updatedAt: serverTimestamp(),
+      }, { merge: true });
       await saveProfileReference(user.uid, next.displayName || data.displayName || user.displayName || "", {
+        email: data.email || user.email || "",
+        talents: next.talents,
+        description: next.description,
         photoURL: next.photoURL || data.photoURL || "",
-        bannerURL: next.bannerURL || data.bannerURL || "",
       });
       if (auth.currentUser) await updateProfile(auth.currentUser, { displayName: next.displayName, photoURL: next.photoURL || data.photoURL || "" });
       avatarPreview.src = getAvatar({ ...data, ...next });
-      bannerPreview.src = getBanner({ ...data, ...next });
       status.textContent = "Profile updated successfully.";
     } catch (error) {
       status.textContent = `Unable to save settings: ${error.message}`;
@@ -333,7 +321,7 @@ async function initSettings(user) {
 
 async function uploadImage(uid, file, type) {
   const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "-");
-  const path = `users/${uid}/${type}-${Date.now()}-${safeName}`;
+  const path = `profiles/${uid}/${type}-${Date.now()}-${safeName}`;
   const storages = [storage, storageFallback];
 
   let latestError;
@@ -397,7 +385,7 @@ async function initProfilePage() {
     ? talents.map((talent) => `<option value="${escapeHtml(talent)}">${escapeHtml(talent)}</option>`).join("")
     : '<option value="General talent">General talent</option>';
 
-  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><img class="profile-banner" src="${escapeHtml(getBanner(user))}" alt="Banner" /><div class="profile-hero"><img class="profile-avatar large" src="${escapeHtml(getAvatar(user))}" alt="Avatar" /><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
+  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><div class="profile-hero"><img class="profile-avatar large" src="${escapeHtml(getAvatar(user))}" alt="Avatar" /><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
 
   if (canInvite && auth.currentUser) {
     const inviteButton = document.getElementById("profileInviteBtn");
@@ -414,10 +402,6 @@ async function initProfilePage() {
 function getAvatar(profile = {}) {
   const avatar = profile.photoURL || profile.photoUrl || profile.avatarURL || profile.avatarUrl || profile.profilePicture || profile.profilePictureURL;
   return avatar || "https://api.iconify.design/lucide:user-round.svg?color=%23777777";
-}
-function getBanner(profile = {}) {
-  const banner = profile.bannerURL || profile.bannerUrl || profile.coverURL || profile.coverUrl || profile.bannerImage;
-  return banner || "https://singlecolorimage.com/get/999999/1200x300";
 }
 function parseCommaList(value) { return String(value || "").split(",").map((entry) => entry.trim()).filter(Boolean); }
 function initTheme() {
