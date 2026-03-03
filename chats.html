@@ -3,15 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Dashboard | Talent Swap</title>
+  <title>Chats | Talent Swap</title>
   <link rel="stylesheet" href="styles.css" />
 </head>
-<body data-page="profiles">
-  <div class="animated-background" aria-hidden="true">
-    <div class="orb orb-1"></div><div class="orb orb-2"></div><div class="orb orb-3"></div>
-    <canvas id="starCanvas"></canvas>
-  </div>
-
+<body data-page="chats">
+  <div class="animated-background" aria-hidden="true"><canvas id="starCanvas"></canvas></div>
   <header class="topbar thin">
     <a href="profiles.html"><img src="Assets/Images/Title.png" class="title-image small" alt="SwapForge" /></a>
     <div class="top-actions">
@@ -22,12 +18,20 @@
   </header>
 
   <main class="container with-bottom-nav">
-    <h1>Dashboard</h1>
-    <p class="muted">Browse users and send invites based on talents.</p>
-    <a class="primary-btn" href="chats.html"><i data-lucide="message-circle"></i>Open chats</a>
-    <input id="profileSearch" type="search" class="search-input" placeholder="Search by name, email, or talent..." />
-    <p id="dashboardStatus" class="status"></p>
-    <section id="profilesList" class="stack-list"></section>
+    <h1>Chats</h1>
+    <p id="chatStatus" class="status"></p>
+    <section class="chat-layout">
+      <aside id="chatConnections" class="chat-connections"></aside>
+      <section class="chat-panel">
+        <h2 id="chatTitle">Select a connection</h2>
+        <div id="chatThread" class="chat-thread"></div>
+        <p id="chatEmpty" class="muted">Choose a connection to start chatting.</p>
+        <form id="chatForm" class="chat-form">
+          <input id="chatMessage" type="text" placeholder="Type your message..." maxlength="500" />
+          <button class="primary-btn" type="submit"><i data-lucide="send"></i>Send</button>
+        </form>
+      </section>
+    </section>
   </main>
 
   <nav class="bottom-bar">
@@ -35,7 +39,7 @@
     <a href="settings.html" class="bottom-link"><i data-lucide="settings"></i><span>Settings</span></a>
     <button class="bottom-link" data-action="toggle-theme"><i data-lucide="sun-moon"></i><span>Theme</span></button>
     <a href="connections.html" class="bottom-link"><i data-lucide="users"></i><span>Current connections</span></a>
-    <a href="chats.html" class="bottom-link"><i data-lucide="message-circle"></i><span>Chats</span></a>
+    <a href="chats.html" class="bottom-link active"><i data-lucide="message-circle"></i><span>Chats</span></a>
   </nav>
 
   <script src="https://cdn.jsdelivr.net/npm/lucide@0.453.0/dist/umd/lucide.min.js"></script>
