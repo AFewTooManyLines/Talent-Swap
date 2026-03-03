@@ -21,6 +21,7 @@ import {
   addDoc,
   updateDoc,
   onSnapshot,
+  orderBy,
 } from "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore.js";
 
 const firebaseConfig = {
@@ -38,7 +39,7 @@ const auth = getAuth(app);
 const db = getFirestore(app);
 const profilesCollection = "profiles";
 const page = document.body.dataset.page;
-const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections"]);
+const privatePages = new Set(["profiles", "find-match", "alerts", "settings", "connections", "chats"]);
 let signupInProgress = false;
 
 initTheme();
@@ -63,6 +64,7 @@ function setupAuthRouter() {
       if (page === "alerts") await initAlerts(user);
       if (page === "settings") await initSettings(user);
       if (page === "connections") await initConnections(user);
+      if (page === "chats") await initChats(user);
     }
   });
 }
@@ -310,13 +312,131 @@ async function saveProfileReference(uid, name, profileData = {}) {
   }, { merge: true });
 }
 
-async function initConnections(user) {
-  const list = document.getElementById("connectionsList");
+function getChatId(uidA, uidB) {
+  return [uidA, uidB].sort().join("_");
+}
+
+async function getAcceptedConnections(user) {
   const incomingAccepted = await getDocs(query(collection(db, "alerts"), where("toUid", "==", user.uid), where("status", "==", "accepted")));
   const outgoingAccepted = await getDocs(query(collection(db, "alerts"), where("fromUid", "==", user.uid), where("status", "==", "accepted")));
-  const connections = [...incomingAccepted.docs.map((e) => ({ direction: "incoming", ...e.data() })), ...outgoingAccepted.docs.map((e) => ({ direction: "outgoing", ...e.data() }))];
+  return [
+    ...incomingAccepted.docs.map((entry) => ({
+      uid: entry.data().fromUid,
+      name: entry.data().fromName || "Connection",
+      talent: entry.data().talent || "General",
+      direction: "incoming",
+    })),
+    ...outgoingAccepted.docs.map((entry) => ({
+      uid: entry.data().toUid,
+      name: entry.data().toName || "Connection",
+      talent: entry.data().talent || "General",
+      direction: "outgoing",
+    })),
+  ].filter((entry) => Boolean(entry.uid));
+}
+
+async function initConnections(user) {
+  const list = document.getElementById("connectionsList");
+  const connections = await getAcceptedConnections(user);
   if (!connections.length) return (list.innerHTML = '<p class="muted">No active connections yet. Accept alerts to connect.</p>');
-  list.innerHTML = connections.map((item) => `<article class="row-card"><div><h3>${escapeHtml((item.direction === "incoming" ? item.fromName : item.toName) || "Connection")}</h3><p class="muted">Connected for talent: ${escapeHtml(item.talent || "General")}</p></div><p class="status-pill accepted">Connected</p></article>`).join("");
+  list.innerHTML = connections.map((item) => `<article class="row-card"><div><h3>${escapeHtml(item.name || "Connection")}</h3><p class="muted">Connected for talent: ${escapeHtml(item.talent || "General")}</p></div><div class="row-actions"><a class="ghost-btn" href="chats.html?uid=${encodeURIComponent(item.uid)}"><i data-lucide="message-circle"></i>Chat</a><p class="status-pill accepted">Connected</p></div></article>`).join("");
+  window.lucide?.createIcons();
+}
+
+async function initChats(user) {
+  const list = document.getElementById("chatConnections");
+  const status = document.getElementById("chatStatus");
+  const thread = document.getElementById("chatThread");
+  const form = document.getElementById("chatForm");
+  const input = document.getElementById("chatMessage");
+  const title = document.getElementById("chatTitle");
+  const emptyState = document.getElementById("chatEmpty");
+  if (!list || !thread || !form || !input || !title || !emptyState) return;
+
+  const connections = await getAcceptedConnections(user);
+  const byUid = new Map();
+  connections.forEach((entry) => {
+    if (!byUid.has(entry.uid)) byUid.set(entry.uid, entry);
+  });
+  const uniqueConnections = [...byUid.values()];
+
+  if (!uniqueConnections.length) {
+    list.innerHTML = '<p class="muted">You need an accepted connection before chatting.</p>';
+    status.textContent = "No available chats yet.";
+    return;
+  }
+
+  let activePartner = null;
+  let unsubscribeMessages = null;
+
+  const renderList = () => {
+    list.innerHTML = uniqueConnections.map((entry) => `<button class="chat-connection-btn ${activePartner?.uid === entry.uid ? "active" : ""}" data-uid="${entry.uid}">${escapeHtml(entry.name)}</button>`).join("");
+    list.querySelectorAll(".chat-connection-btn").forEach((button) => {
+      button.addEventListener("click", () => {
+        const selected = uniqueConnections.find((entry) => entry.uid === button.dataset.uid);
+        if (selected) openChat(selected);
+      });
+    });
+  };
+
+  const openChat = async (partner) => {
+    activePartner = partner;
+    renderList();
+    title.textContent = `Chat with ${partner.name}`;
+    emptyState.hidden = true;
+    thread.innerHTML = "";
+    status.textContent = "";
+    if (unsubscribeMessages) unsubscribeMessages();
+
+    const chatId = getChatId(user.uid, partner.uid);
+    await setDoc(doc(db, "chats", chatId), {
+      participants: [user.uid, partner.uid],
+      participantNames: {
+        [user.uid]: user.displayName || user.email || "You",
+        [partner.uid]: partner.name,
+      },
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+
+    const messagesQuery = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
+    unsubscribeMessages = onSnapshot(messagesQuery, (snapshot) => {
+      if (!snapshot.docs.length) {
+        thread.innerHTML = '<p class="muted">No messages yet. Start the conversation.</p>';
+        return;
+      }
+      thread.innerHTML = snapshot.docs.map((entry) => {
+        const message = entry.data();
+        const mine = message.fromUid === user.uid;
+        return `<div class="chat-bubble ${mine ? "mine" : "theirs"}"><p>${escapeHtml(message.text || "")}</p></div>`;
+      }).join("");
+      thread.scrollTop = thread.scrollHeight;
+    });
+  };
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!activePartner) return;
+    const text = input.value.trim();
+    if (!text) return;
+    const chatId = getChatId(user.uid, activePartner.uid);
+    await addDoc(collection(db, "chats", chatId, "messages"), {
+      fromUid: user.uid,
+      fromName: user.displayName || user.email || "You",
+      text,
+      createdAt: serverTimestamp(),
+    });
+    await setDoc(doc(db, "chats", chatId), {
+      lastMessage: text,
+      lastSenderUid: user.uid,
+      updatedAt: serverTimestamp(),
+    }, { merge: true });
+    input.value = "";
+  });
+
+  const selectedUid = new URLSearchParams(window.location.search).get("uid");
+  const initialPartner = uniqueConnections.find((entry) => entry.uid === selectedUid) || uniqueConnections[0];
+  renderList();
+  await openChat(initialPartner);
 }
 
 async function initProfilePage() {
