@@ -89,6 +89,21 @@ async function initDashboardLayout(user) {
     const count = document.getElementById("alertCount");
     if (count) count.textContent = amount > 0 ? `${amount}` : "";
   });
+
+  const chatsQuery = query(collection(db, "chats"), where("participants", "array-contains", user.uid));
+  onSnapshot(chatsQuery, (snapshot) => {
+    const unread = snapshot.docs.reduce((amount, entry) => {
+      const chat = entry.data();
+      const lastReadAt = chat.lastReadAt?.[user.uid]?.seconds || 0;
+      const updatedAt = chat.updatedAt?.seconds || 0;
+      const sentByOtherUser = chat.lastSenderUid && chat.lastSenderUid !== user.uid;
+      return amount + (sentByOtherUser && updatedAt > lastReadAt ? 1 : 0);
+    }, 0);
+    document.getElementById("chatDot")?.classList.toggle("visible", unread > 0);
+    const count = document.getElementById("chatCount");
+    if (count) count.textContent = unread > 0 ? `${unread}` : "";
+  });
+
   window.lucide?.createIcons();
 }
 
@@ -182,6 +197,7 @@ async function initDashboard(user) {
       return `<article class="row-card">
           <div>
             <div class="row-main">
+              <div class="initial-avatar">${getInitials(profile.displayName || profile.email || "User")}</div>
               <div>
                 <h3>${escapeHtml(profile.displayName || "Unnamed")}</h3>
                 <p class="muted">${escapeHtml(profile.email || "No email")}</p>
@@ -230,7 +246,7 @@ async function initFindMatch(user) { /* unchanged behavior */
     const matches = users.filter((entry) => (entry.talents || []).some((talent) => talent.toLowerCase().includes(t)));
     if (!t) return (list.innerHTML = '<p class="muted">Type a talent you are looking for to find matches.</p>');
     if (!matches.length) return (list.innerHTML = '<p class="muted">No matches yet for that talent.</p>');
-    list.innerHTML = matches.map((entry) => `<article class="row-card"><div><h3>${escapeHtml(entry.displayName || "Unnamed")}</h3><div class="chips">${(entry.talents || []).map((talent) => `<span class="chip">${escapeHtml(talent)}</span>`).join("")}</div></div><a class="ghost-btn" href="profile.html?uid=${entry.uid}"><i data-lucide="user-round"></i></a></article>`).join("");
+    list.innerHTML = matches.map((entry) => `<article class="row-card"><div class="row-main"><div class="initial-avatar">${getInitials(entry.displayName || entry.email || "User")}</div><div><h3>${escapeHtml(entry.displayName || "Unnamed")}</h3><div class="chips">${(entry.talents || []).map((talent) => `<span class="chip">${escapeHtml(talent)}</span>`).join("")}</div></div></div><a class="ghost-btn" href="profile.html?uid=${entry.uid}"><i data-lucide="user-round"></i></a></article>`).join("");
     window.lucide?.createIcons();
   };
   input.value = (userData.talents || [""])[0] || "";
@@ -339,7 +355,7 @@ async function initConnections(user) {
   const list = document.getElementById("connectionsList");
   const connections = await getAcceptedConnections(user);
   if (!connections.length) return (list.innerHTML = '<p class="muted">No active connections yet. Accept alerts to connect.</p>');
-  list.innerHTML = connections.map((item) => `<article class="row-card"><div><h3>${escapeHtml(item.name || "Connection")}</h3><p class="muted">Connected for talent: ${escapeHtml(item.talent || "General")}</p></div><div class="row-actions"><a class="ghost-btn" href="chats.html?uid=${encodeURIComponent(item.uid)}"><i data-lucide="message-circle"></i>Chat</a><p class="status-pill accepted">Connected</p></div></article>`).join("");
+  list.innerHTML = connections.map((item) => `<article class="row-card"><div class="row-main"><div class="initial-avatar">${getInitials(item.name || "Connection")}</div><div><h3>${escapeHtml(item.name || "Connection")}</h3><p class="muted">Connected for talent: ${escapeHtml(item.talent || "General")}</p></div></div><div class="row-actions"><a class="ghost-btn" href="chats.html?uid=${encodeURIComponent(item.uid)}"><i data-lucide="message-circle"></i>Chat</a><p class="status-pill accepted">Connected</p></div></article>`).join("");
   window.lucide?.createIcons();
 }
 
@@ -370,7 +386,7 @@ async function initChats(user) {
   let unsubscribeMessages = null;
 
   const renderList = () => {
-    list.innerHTML = uniqueConnections.map((entry) => `<button class="chat-connection-btn ${activePartner?.uid === entry.uid ? "active" : ""}" data-uid="${entry.uid}">${escapeHtml(entry.name)}</button>`).join("");
+    list.innerHTML = uniqueConnections.map((entry) => `<button class="chat-connection-btn ${activePartner?.uid === entry.uid ? "active" : ""}" data-uid="${entry.uid}"><span class="initial-avatar small">${getInitials(entry.name || "Connection")}</span><span>${escapeHtml(entry.name)}</span></button>`).join("");
     list.querySelectorAll(".chat-connection-btn").forEach((button) => {
       button.addEventListener("click", () => {
         const selected = uniqueConnections.find((entry) => entry.uid === button.dataset.uid);
@@ -396,6 +412,9 @@ async function initChats(user) {
         [partner.uid]: partner.name,
       },
       updatedAt: serverTimestamp(),
+      lastReadAt: {
+        [user.uid]: serverTimestamp(),
+      },
     }, { merge: true });
 
     const messagesQuery = query(collection(db, "chats", chatId, "messages"), orderBy("createdAt", "asc"));
@@ -410,6 +429,11 @@ async function initChats(user) {
         return `<div class="chat-bubble ${mine ? "mine" : "theirs"}"><p>${escapeHtml(message.text || "")}</p></div>`;
       }).join("");
       thread.scrollTop = thread.scrollHeight;
+      setDoc(doc(db, "chats", chatId), {
+        lastReadAt: {
+          [user.uid]: serverTimestamp(),
+        },
+      }, { merge: true });
     });
   };
 
@@ -452,7 +476,7 @@ async function initProfilePage() {
     ? talents.map((talent) => `<option value="${escapeHtml(talent)}">${escapeHtml(talent)}</option>`).join("")
     : '<option value="General talent">General talent</option>';
 
-  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><div class="profile-hero"><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
+  container.innerHTML = `<article class="auth-card pop-in profile-detail-card"><div class="profile-hero"><div class="initial-avatar large">${getInitials(user.displayName || user.email || "User")}</div><div><h1>${escapeHtml(user.displayName || "Anonymous")}</h1><p><strong>Email:</strong> ${escapeHtml(user.email || "Not shared")}</p><p class="profile-description"><strong>Description:</strong> ${escapeHtml(user.description || "No profile description yet.")}</p></div></div><h3>Talents</h3><div class="chips">${talents.map((t) => `<span class="chip">${escapeHtml(t)}</span>`).join("") || '<span class="muted">No talents listed.</span>'}</div>${canInvite ? `<div class="row-actions profile-invite-actions"><select id="profileTalentSelect" class="tiny-select">${inviteOptions}</select><button id="profileInviteBtn" class="primary-btn" data-user-id="${user.uid}" data-user-name="${escapeHtml(user.displayName || "User")}"><i data-lucide="send"></i> Send connection request</button></div><p id="profileInviteStatus" class="status"></p>` : ""}</article>`;
 
   if (canInvite && auth.currentUser) {
     const inviteButton = document.getElementById("profileInviteBtn");
@@ -467,6 +491,12 @@ async function initProfilePage() {
 }
 
 function parseCommaList(value) { return String(value || "").split(",").map((entry) => entry.trim()).filter(Boolean); }
+function getInitials(name) {
+  const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+  if (!parts.length) return "U";
+  if (parts.length === 1) return parts[0].slice(0, 2).toUpperCase();
+  return `${parts[0][0] || ""}${parts[1][0] || ""}`.toUpperCase();
+}
 function initTheme() {
   const saved = localStorage.getItem("theme") || "light";
   document.body.dataset.theme = saved;
