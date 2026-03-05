@@ -504,6 +504,8 @@ function initHelpWidget() {
   widget.className = "help-widget";
   widget.innerHTML = `<button class="help-toggle" type="button" data-action="toggle-help" aria-expanded="false" aria-controls="helpPanel"><i data-lucide="circle-help"></i><span>Help</span></button><div id="helpPanel" class="help-panel" hidden><button class="help-option" type="button" data-help-topic="about">About</button><button class="help-option" type="button" data-help-topic="privacy">Privacy</button><button class="help-option" type="button" data-help-topic="feedback">Feedback</button><p id="helpStatus" class="muted help-status" aria-live="polite"></p></div>`;
   document.body.append(widget);
+  const helpPanel = widget.querySelector("#helpPanel");
+  if (helpPanel) helpPanel.hidden = true;
   widget.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-action='toggle-help']");
     if (toggle) {
