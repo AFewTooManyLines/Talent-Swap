@@ -502,7 +502,7 @@ function initHelpWidget() {
   const widget = document.createElement("aside");
   widget.id = "helpWidget";
   widget.className = "help-widget";
-  widget.innerHTML = `<button class="help-toggle" type="button" data-action="toggle-help" aria-expanded="false" aria-controls="helpPanel"><i data-lucide="circle-help"></i><span>Help</span></button><div id="helpPanel" class="help-panel" hidden><button class="help-option" type="button" data-help-topic="about">About</button><button class="help-option" type="button" data-help-topic="privacy">Privacy</button><button class="help-option" type="button" data-help-topic="feedback">Feedback</button><p id="helpStatus" class="muted help-status" aria-live="polite"></p></div>`;
+  widget.innerHTML = `<button class="help-toggle" type="button" data-action="toggle-help" aria-expanded="false" aria-controls="helpPanel"><i data-lucide="circle-help"></i><span>Help</span></button><div id="helpPanel" class="help-panel" hidden aria-hidden="true"></div>`;
   document.body.append(widget);
   const helpPanel = widget.querySelector("#helpPanel");
   if (helpPanel) helpPanel.hidden = true;
@@ -512,19 +512,10 @@ function initHelpWidget() {
       const panel = widget.querySelector("#helpPanel");
       const expanded = toggle.getAttribute("aria-expanded") === "true";
       toggle.setAttribute("aria-expanded", String(!expanded));
+      panel.setAttribute("aria-hidden", String(expanded));
       panel.hidden = expanded;
       return;
     }
-    const option = event.target.closest(".help-option");
-    if (!option) return;
-    const topic = option.dataset.helpTopic;
-    const status = widget.querySelector("#helpStatus");
-    const copy = {
-      about: "Talent Swap lets people exchange talents through profile discovery, invites, and chat.",
-      privacy: "Only account profile details and activity needed for matching and chat are stored.",
-      feedback: "Want to share feedback? Email us at support@talentswap.app.",
-    };
-    status.textContent = copy[topic] || "";
   });
   window.lucide?.createIcons();
 }
