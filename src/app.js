@@ -58,6 +58,7 @@ function setupAuthRouter() {
     if ((page === "signin" || page === "signup") && user && !(page === "signup" && signupInProgress)) return window.location.replace("profiles.html");
     if (privatePages.has(page) && !user) return window.location.replace("signin.html");
     if (privatePages.has(page) && user) {
+      initHelpWidget();
       await initDashboardLayout(user);
       if (page === "profiles") await initDashboard(user);
       if (page === "find-match") await initFindMatch(user);
@@ -116,7 +117,14 @@ function initSignup() {
     const displayName = String(fd.get("displayName") || "").trim();
     const email = String(fd.get("email") || "").trim().toLowerCase();
     const password = String(fd.get("password") || "");
+    const confirmPassword = String(fd.get("confirmPassword") || "");
     const talents = parseCommaList(fd.get("talents"));
+
+    if (password !== confirmPassword) {
+      status.textContent = "Passwords must match before creating an account.";
+      return;
+    }
+
     try {
       status.textContent = "Creating account...";
       signupInProgress = true;
@@ -149,7 +157,6 @@ function initSignup() {
     }
   });
 }
-
 function initSignin() {
   const form = document.getElementById("signinForm");
   const status = document.getElementById("signinStatus");
@@ -487,6 +494,36 @@ async function initProfilePage() {
     });
   }
 
+  window.lucide?.createIcons();
+}
+
+function initHelpWidget() {
+  if (!privatePages.has(page) || document.getElementById("helpWidget")) return;
+  const widget = document.createElement("aside");
+  widget.id = "helpWidget";
+  widget.className = "help-widget";
+  widget.innerHTML = `<button class="help-toggle" type="button" data-action="toggle-help" aria-expanded="false" aria-controls="helpPanel"><i data-lucide="circle-help"></i><span>Help</span></button><div id="helpPanel" class="help-panel" hidden><button class="help-option" type="button" data-help-topic="about">About</button><button class="help-option" type="button" data-help-topic="privacy">Privacy</button><button class="help-option" type="button" data-help-topic="feedback">Feedback</button><p id="helpStatus" class="muted help-status" aria-live="polite"></p></div>`;
+  document.body.append(widget);
+  widget.addEventListener("click", (event) => {
+    const toggle = event.target.closest("[data-action='toggle-help']");
+    if (toggle) {
+      const panel = widget.querySelector("#helpPanel");
+      const expanded = toggle.getAttribute("aria-expanded") === "true";
+      toggle.setAttribute("aria-expanded", String(!expanded));
+      panel.hidden = expanded;
+      return;
+    }
+    const option = event.target.closest(".help-option");
+    if (!option) return;
+    const topic = option.dataset.helpTopic;
+    const status = widget.querySelector("#helpStatus");
+    const copy = {
+      about: "Talent Swap lets people exchange talents through profile discovery, invites, and chat.",
+      privacy: "Only account profile details and activity needed for matching and chat are stored.",
+      feedback: "Want to share feedback? Email us at support@talentswap.app.",
+    };
+    status.textContent = copy[topic] || "";
+  });
   window.lucide?.createIcons();
 }
 
