@@ -65,7 +65,7 @@ textarea { resize:vertical; min-height:90px; font-family:inherit; }
 .pop-in { animation: pop .55s ease; }
 @keyframes pop { from { transform:scale(.94); opacity:0;} to { transform:scale(1); opacity:1;} }
 .container { max-width:1100px; margin:0 auto; padding:1rem 1rem 2rem; }
-.with-bottom-nav { padding-bottom:2rem; padding-right:13rem; }
+.with-bottom-nav { padding-bottom:7rem; padding-right:1rem; }
 .search-input { width:100%; margin-bottom:1rem; }
 .chips { display:flex; flex-wrap:wrap; gap:.4rem; }
 .chip { background:var(--chip); padding:.2rem .6rem; border-radius:999px; border:1px solid var(--chip-border); font-size:.85rem; }
@@ -85,8 +85,8 @@ textarea { resize:vertical; min-height:90px; font-family:inherit; }
 .profile-detail-card { margin-inline:auto; }
 .profile-invite-actions { margin-top:1rem; flex-wrap:wrap; }
 body[data-page="profile"] #profileDetail { display:flex; justify-content:center; }
-.bottom-bar { position:fixed; top:50%; right:2.1rem; transform:translateY(-50%); display:flex; flex-direction:column; justify-content:space-evenly; gap:.6rem; padding:.8rem .65rem; width:min(190px,40vw); min-height:min(72vh,560px); background:var(--surface-soft); border:1px solid var(--border); border-radius:1rem; box-shadow:var(--shadow); z-index:20; }
-.bottom-link { border:1px solid var(--border); border-radius:999px; padding:.55rem .7rem; background:transparent; color:var(--text); text-decoration:none; display:flex; align-items:center; justify-content:flex-start; gap:.35rem; font-size:.8rem; cursor:pointer; }
+.bottom-bar { position:fixed; bottom:.9rem; left:50%; transform:translateX(-50%); display:flex; flex-direction:row; justify-content:center; gap:.6rem; padding:.7rem; width:min(960px,calc(100vw - 2rem)); background:var(--surface-soft); border:1px solid var(--border); border-radius:1rem; box-shadow:var(--shadow); z-index:20; }
+.bottom-link { border:1px solid var(--border); border-radius:999px; padding:.55rem .7rem; background:transparent; color:var(--text); text-decoration:none; display:flex; align-items:center; justify-content:center; gap:.35rem; font-size:.8rem; cursor:pointer; }
 .alert-dot { width:8px;height:8px;border-radius:50%;display:inline-block;background:var(--primary-strong);opacity:0; }
 .alert-dot.visible { opacity:1; }
 .alert-count { font-size:.8rem; font-weight:700; color:var(--primary-strong); }
