@@ -498,25 +498,15 @@ async function initProfilePage() {
 }
 
 function initHelpWidget() {
-  if (!privatePages.has(page) || document.getElementById("helpWidget")) return;
-  const widget = document.createElement("aside");
-  widget.id = "helpWidget";
-  widget.className = "help-widget";
-  widget.innerHTML = `<button class="help-toggle" type="button" data-action="toggle-help" aria-expanded="false" aria-controls="helpPanel"><i data-lucide="circle-help"></i><span>Help</span></button><div id="helpPanel" class="help-panel" hidden aria-hidden="true"></div>`;
-  document.body.append(widget);
-  const helpPanel = widget.querySelector("#helpPanel");
-  if (helpPanel) helpPanel.hidden = true;
-  widget.addEventListener("click", (event) => {
-    const toggle = event.target.closest("[data-action='toggle-help']");
-    if (toggle) {
-      const panel = widget.querySelector("#helpPanel");
-      const expanded = toggle.getAttribute("aria-expanded") === "true";
-      toggle.setAttribute("aria-expanded", String(!expanded));
-      panel.setAttribute("aria-hidden", String(expanded));
-      panel.hidden = expanded;
-      return;
-    }
-  });
+  if (!privatePages.has(page) || document.querySelector(".bottom-bar [data-action='toggle-help']")) return;
+  const bottomBar = document.querySelector(".bottom-bar");
+  if (!bottomBar) return;
+  const helpButton = document.createElement("button");
+  helpButton.type = "button";
+  helpButton.className = "bottom-link";
+  helpButton.dataset.action = "toggle-help";
+  helpButton.innerHTML = '<i data-lucide="circle-help"></i><span>Help</span>';
+  bottomBar.append(helpButton);
   window.lucide?.createIcons();
 }
 
@@ -532,10 +522,17 @@ function initTheme() {
   document.body.dataset.theme = saved;
   document.addEventListener("click", (event) => {
     const toggle = event.target.closest("[data-action='toggle-theme']");
-    if (!toggle) return;
-    const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
-    document.body.dataset.theme = nextTheme;
-    localStorage.setItem("theme", nextTheme);
+    if (toggle) {
+      const nextTheme = document.body.dataset.theme === "dark" ? "light" : "dark";
+      document.body.dataset.theme = nextTheme;
+      localStorage.setItem("theme", nextTheme);
+      return;
+    }
+
+    const helpToggle = event.target.closest("[data-action='toggle-help']");
+    if (helpToggle) {
+      window.alert("Need help? Use Find my match to discover collaborators, accept Alerts to connect, and start conversations in Chats.");
+    }
   });
 }
 function escapeHtml(text) { return String(text).replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;").replaceAll('"', "&quot;").replaceAll("'", "&#39;"); }
